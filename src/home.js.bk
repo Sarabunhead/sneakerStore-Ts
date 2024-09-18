@@ -1,0 +1,143 @@
+const productContainer = document.getElementById("productContainer");
+const search = document.getElementById("search");
+
+document.addEventListener('DOMContentLoaded', function() {
+    const username = localStorage.getItem('username');
+    displayGreeting(username);
+    showProducts(); // Show all products initially
+});
+
+function getGreeting() {
+    const now = new Date();
+    const hours = now.getHours();
+    let greeting;
+    if (hours < 12) {
+        greeting = "Good Morning &#128075;";
+    } else if (hours < 18) {
+        greeting = "Good Afternoon &#128075;";
+    } else {
+        greeting = "Good Evening &#128075;";
+    }
+    return greeting;
+}
+
+function displayGreeting(username) {
+    const greetingContainer = document.getElementById("greetingContainer");
+    const greeting = getGreeting();
+    greetingContainer.innerHTML = `
+        <p class="text-xl text-gray-500">${greeting}</p>
+        <p class="text-xl font-bold mt-2">Hello, ${username}!</p>
+    `;
+}
+
+async function getProducts() {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+        alert('Please log in first.');
+        return null;
+    }
+
+    try {
+        const res = await fetch('http://localhost:3000/sneaker?page=1&limit=1000', {
+            method: 'GET',
+            headers: {
+                'Accept': '*/*',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching products:', error);
+        return null;
+    }
+}
+
+async function showProducts(products = null) {
+    if (!products) {
+        products = await getProducts();
+        if (!products) return;
+        products = products.data;
+    } else {
+        products = products.data;
+    }
+
+    productContainer.innerHTML = ''; // Clear existing products
+
+    products.forEach((product) => {
+        const productElement = document.createElement('div');
+        productElement.className = 'w-1/2 p-2'; 
+        productElement.innerHTML = `
+            <div class="product border p-4 bg-white shadow-sm rounded">
+                <h2 class="text-xl font-bold">${product.name}</h2>
+                <img class="shoeImage w-full h-48 object-cover mt-2" src="${product.imageURL}" alt="${product.name}" data-id="${product.id}" style="cursor: pointer;">
+                <p class="text-gray-900 font-semibold">Price: $${product.price}</p>
+            </div>
+        `;
+        productContainer.appendChild(productElement);
+    });
+
+    // Attach click event listeners to the images after they are added to the DOM
+    document.querySelectorAll('.shoeImage').forEach(image => {
+        image.addEventListener('click', function() {
+            const productId = this.getAttribute('data-id');
+            const token = localStorage.getItem('authToken');
+
+            if (!token) {
+                alert('Please log in first.');
+                return;
+            }
+
+            // Open the new page with the product ID as a query parameter
+            window.open(`product.html?id=${productId}`, "_blank");
+        });
+    });
+}
+
+function filterProduct(e) {
+    const term = e.target.value.toUpperCase();
+    console.log(term);
+    const products = document.querySelectorAll('.product');
+    let found = false;
+
+    products.forEach(product => {
+        const title = product.querySelector('h2').innerText.toUpperCase();
+        // Show or hide products based on the search term
+        if (title.indexOf(term) > -1) {
+            product.classList.remove('hidden'); // Ensure the product is visible
+            product.classList.add('block'); // Apply block to make it visible
+            found = true;
+        } else {
+            product.classList.remove('block'); // Ensure the product is hidden
+            product.classList.add('hidden'); // Hide the product
+        }
+    });
+
+    // Show or hide the "no items found" message
+    const noItemsFound = document.getElementById('noItemsFound');
+    if (found) {
+        noItemsFound.classList.add('hidden');
+    } else {
+        noItemsFound.classList.remove('hidden');
+    }
+}
+
+async function fetchProductsByBrand(brand) {
+    const products = await getProducts();
+    if (!products) return;
+
+    const filteredProducts = products.data.filter(product => product.brand.toLowerCase() === brand.toLowerCase());
+    showProducts({ data: filteredProducts });
+}
+
+document.getElementById('allButton').addEventListener('click', async () => {
+    await showProducts(); // Fetch and display all products
+});
+document.getElementById('nikeButton').addEventListener('click', () => fetchProductsByBrand('Nike'));
+document.getElementById('adidasButton').addEventListener('click', () => fetchProductsByBrand('Adidas'));
+document.getElementById('pumaButton').addEventListener('click', () => fetchProductsByBrand('Puma'));
+document.getElementById('asicsButton').addEventListener('click', () => fetchProductsByBrand('Asics'));
+
+search.addEventListener('input', filterProduct);
+
